@@ -1,45 +1,33 @@
-# =============================================================
-# Prometheus Configuration — OmniNode
-# =============================================================
-
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
     monitor: 'omninode'
 
-# Alertmanager connection
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
             - alertmanager:9093
 
-# Alert rules
 rule_files:
   - "alerts.yml"
 
-# Scrape targets
 scrape_configs:
 
-  # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  # Ethereum Geth metrics
+  - job_name: 'bitcoin'
+    static_configs:
+      - targets: ['bitcoin-exporter:9332']
+
   - job_name: 'ethereum'
     static_configs:
       - targets: ['ethereum:6060']
     metrics_path: /debug/metrics/prometheus
 
-  # Bitcoin — via custom exporter script (Project 3 extends this)
-  - job_name: 'bitcoin'
-    static_configs:
-      - targets: ['bitcoin:8332']
-    metrics_path: /metrics
-
-  # Grafana self-monitoring
   - job_name: 'grafana'
     static_configs:
       - targets: ['grafana:3000']

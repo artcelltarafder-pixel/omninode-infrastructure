@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   bitcoin:
@@ -19,6 +17,28 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - omninode
+
+  bitcoin-exporter:
+    image: python:3.11-slim
+    container_name: omninode-bitcoin-exporter
+    restart: unless-stopped
+    volumes:
+      - ./scripts/bitcoin-exporter.py:/exporter/bitcoin-exporter.py:ro
+    working_dir: /exporter
+    command: >
+      sh -c "pip install requests --quiet && python3 bitcoin-exporter.py"
+    environment:
+      - BTC_RPC_HOST=bitcoin
+      - BTC_RPC_PORT=8332
+      - BTC_RPC_USER=${BTC_RPC_USER}
+      - BTC_RPC_PASS=${BTC_RPC_PASS}
+      - BTC_EXPORTER_PORT=9332
+    ports:
+      - "9332:9332"
+    depends_on:
+      - bitcoin
     networks:
       - omninode
 
@@ -74,6 +94,7 @@ services:
     container_name: omninode-grafana
     restart: unless-stopped
     volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     ports:
       - "${GRAFANA_PORT}:3000"
