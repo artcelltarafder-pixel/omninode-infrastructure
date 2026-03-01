@@ -182,3 +182,4 @@ terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/.terraform.lock.hcl
+ansible/inventory-local.ini
