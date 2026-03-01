@@ -1,0 +1,256 @@
+---
+# =============================================================
+# OmniNode — Ansible Playbook
+# Provisions and configures a server to run OmniNode
+# Usage: ansible-playbook -i inventory.ini playbooks/setup.yml
+# =============================================================
+
+- name: OmniNode Server Setup
+  hosts: omninode
+  become: true
+  vars:
+    omninode_dir: /opt/omninode
+    github_repo: artcelltarafder-pixel/omninode-infrastructure
+
+  tasks:
+
+    # -------------------------------------------------------------
+    # System updates
+    # -------------------------------------------------------------
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install required packages
+      apt:
+        name:
+          - git
+          - curl
+          - wget
+          - python3
+          - python3-pip
+          - ufw
+          - htop
+          - net-tools
+        state: present
+
+    # -------------------------------------------------------------
+    # Docker installation
+    # -------------------------------------------------------------
+    - name: Install Docker dependencies
+      apt:
+        name:
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      shell: |
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/docker-archive-keyring.gpg
+
+    - name: Add Docker repository
+      shell: |
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+      args:
+        creates: /etc/apt/sources.list.d/docker.list
+
+    - name: Install Docker Engine
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        update_cache: yes
+        state: present
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # -------------------------------------------------------------
+    # Firewall configuration
+    # -------------------------------------------------------------
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Allow Bitcoin RPC
+      ufw:
+        rule: allow
+        port: "8332"
+        proto: tcp
+
+    - name: Allow Bitcoin P2P
+      ufw:
+        rule: allow
+        port: "8333"
+        proto: tcp
+
+    - name: Allow Ethereum HTTP RPC
+      ufw:
+        rule: allow
+        port: "8545"
+        proto: tcp
+
+    - name: Allow Ethereum WebSocket
+      ufw:
+        rule: allow
+        port: "8546"
+        proto: tcp
+
+    - name: Allow Ethereum P2P
+      ufw:
+        rule: allow
+        port: "30303"
+        proto: tcp
+
+    - name: Allow Lighthouse P2P TCP
+      ufw:
+        rule: allow
+        port: "9000"
+        proto: tcp
+
+    - name: Allow Lighthouse P2P UDP
+      ufw:
+        rule: allow
+        port: "9000"
+        proto: udp
+
+    - name: Allow Grafana
+      ufw:
+        rule: allow
+        port: "3000"
+        proto: tcp
+
+    - name: Allow Prometheus
+      ufw:
+        rule: allow
+        port: "9090"
+        proto: tcp
+
+    - name: Allow Alertmanager
+      ufw:
+        rule: allow
+        port: "9093"
+        proto: tcp
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    # -------------------------------------------------------------
+    # Clone OmniNode repository
+    # -------------------------------------------------------------
+    - name: Clone OmniNode repository
+      git:
+        repo: "https://github.com/{{ github_repo }}.git"
+        dest: "{{ omninode_dir }}"
+        force: yes
+
+    - name: Set permissions on omninode directory
+      file:
+        path: "{{ omninode_dir }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: yes
+
+    - name: Make omninode scripts executable
+      file:
+        path: "{{ item }}"
+        mode: "0755"
+      loop:
+        - "{{ omninode_dir }}/omninode"
+        - "{{ omninode_dir }}/scripts/omninode.sh"
+        - "{{ omninode_dir }}/scripts/check-ports.sh"
+        - "{{ omninode_dir }}/scripts/backup.sh"
+
+    # -------------------------------------------------------------
+    # Environment configuration
+    # -------------------------------------------------------------
+    - name: Copy env example to .env
+      copy:
+        src: "{{ omninode_dir }}/.env.example"
+        dest: "{{ omninode_dir }}/.env"
+        remote_src: yes
+        force: no
+
+    # -------------------------------------------------------------
+    # Create data directories
+    # -------------------------------------------------------------
+    - name: Create Bitcoin data directory
+      file:
+        path: "{{ omninode_dir }}/docker/bitcoin/data"
+        state: directory
+        mode: "0755"
+
+    - name: Create Ethereum data directory
+      file:
+        path: "{{ omninode_dir }}/docker/ethereum/data"
+        state: directory
+        mode: "0755"
+
+    - name: Create Lighthouse data directory
+      file:
+        path: "{{ omninode_dir }}/docker/lighthouse/data"
+        state: directory
+        mode: "0755"
+
+    # -------------------------------------------------------------
+    # Systemd service — auto start OmniNode on boot
+    # -------------------------------------------------------------
+    - name: Create OmniNode systemd service
+      copy:
+        dest: /etc/systemd/system/omninode.service
+        content: |
+          [Unit]
+          Description=OmniNode Infrastructure Manager
+          After=docker.service
+          Requires=docker.service
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          WorkingDirectory={{ omninode_dir }}
+          ExecStart={{ omninode_dir }}/omninode start all
+          ExecStop={{ omninode_dir }}/omninode stop all
+          User={{ ansible_user }}
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable OmniNode service
+      systemd:
+        name: omninode
+        enabled: yes
+        daemon_reload: yes
+
+    # -------------------------------------------------------------
+    # Final summary
+    # -------------------------------------------------------------
+    - name: Print setup complete message
+      debug:
+        msg:
+          - "OmniNode setup complete!"
+          - "Directory: {{ omninode_dir }}"
+          - "Start nodes: cd {{ omninode_dir }} && ./omninode start all"
+          - "Check status: cd {{ omninode_dir }} && ./omninode status"
