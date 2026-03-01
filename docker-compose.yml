@@ -48,6 +48,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/ethereum/data:/data
+      - ./docker/lighthouse/data/jwtsecret:/data/geth/jwtsecret:ro
     ports:
       - "${ETH_HTTP_PORT}:8545"
       - "${ETH_WS_PORT}:8546"
@@ -69,11 +70,40 @@ services:
       --sepolia
       --syncmode snap
       --maxpeers 25
+      --authrpc.addr 0.0.0.0
+      --authrpc.port 8551
+      --authrpc.vhosts "*"
+      --authrpc.jwtsecret /data/geth/jwtsecret
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8545"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - omninode
+
+  lighthouse:
+    image: sigp/lighthouse:latest
+    container_name: omninode-lighthouse
+    restart: unless-stopped
+    volumes:
+      - ./docker/lighthouse/data:/data
+    ports:
+      - "9000:9000/tcp"
+      - "9000:9000/udp"
+      - "5052:5052"
+    command: >
+      lighthouse bn
+      --network sepolia
+      --datadir /data
+      --http
+      --http-address 0.0.0.0
+      --http-port 5052
+      --execution-endpoint http://ethereum:8551
+      --execution-jwt /data/jwtsecret
+      --checkpoint-sync-url https://sepolia.beaconstate.info
+    depends_on:
+      - ethereum
     networks:
       - omninode
 

@@ -171,3 +171,7 @@ docker/bitcoin/data/*
 docker/ethereum/data/*
 !docker/bitcoin/data/.gitkeep
 !docker/ethereum/data/.gitkeep
+
+# Backups
+backups/
+docker/lighthouse/data/
