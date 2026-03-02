@@ -85,8 +85,10 @@ calculate_totals() {
   # Convert all RAM limits to MB and sum
   mem_to_mb() {
     local val="$1"
-    if [[ "$val" == *G ]]; then
-      echo "${val%G} * 1024" | bc
+    if [[ "$val" == *G || "$val" == *g ]]; then
+      echo "${val%[Gg]} * 1024" | bc
+    elif [[ "$val" == *M || "$val" == *m ]]; then
+      echo "${val%[Mm]}"
     else
       echo "${val%M}"
     fi
