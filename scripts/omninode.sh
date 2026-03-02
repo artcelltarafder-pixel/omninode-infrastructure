@@ -335,7 +335,8 @@ case "$COMMAND" in
   restart)  cmd_restart "$TARGET" ;;
   status)   print_header; cmd_status ;;
   health)   cmd_health ;;
-  logs)     cmd_logs "$TARGET" ;;
+  logs)      cmd_logs "$TARGET" ;;
+  resources) bash "$SCRIPT_DIR/resource-manager.sh" ;;
   help|--help|-h) print_header; print_usage ;;
   *)
     echo -e "${RED}Unknown command: $COMMAND${NC}"
