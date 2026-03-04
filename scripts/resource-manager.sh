@@ -351,10 +351,13 @@ echo -e "  File          : ${BOLD}docker-compose.override.yml${NC}"
 echo -e "  Applied       : ${BOLD}automatically on next ./omninode start all${NC}"
 echo ""
 
-read -p "  Restart stack now to apply limits? [Y/n]: " restart
-if [[ "${restart,,}" != "n" ]]; then
-  echo ""
-  "$SCRIPT_DIR/omninode.sh" restart all
+# Skip restart prompt if called with --no-restart flag (e.g. from setup.sh)
+if [[ "${1:-}" != "--no-restart" ]]; then
+  read -p "  Restart stack now to apply limits? [Y/n]: " restart
+  if [[ "${restart,,}" != "n" ]]; then
+    echo ""
+    "$SCRIPT_DIR/omninode.sh" restart all
+  fi
 fi
 
 echo ""
