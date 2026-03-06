@@ -1,0 +1,57 @@
+name: OmniNode CI
+
+"on":
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Validate Stack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Compose config check
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform init and validate
+        working-directory: terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Install Ansible
+        run: pip install ansible --quiet
+
+      - name: Ansible syntax check
+        run: |
+          cat > /tmp/inventory-ci.ini << 'EOF'
+          [omninode]
+          localhost ansible_connection=local ansible_user=runner
+          EOF
+          ansible-playbook \
+            -i /tmp/inventory-ci.ini \
+            ansible/playbooks/setup.yml \
+            --syntax-check
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./scripts
+          severity: error
+
+      - name: Python lint
+        run: |
+          pip install flake8 --quiet
+          flake8 scripts/ --max-line-length=120 --ignore=E501,W503
